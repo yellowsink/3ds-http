@@ -216,14 +216,14 @@ int main(int argc, char* argv[])
 
 	u8* buf;
 	u32 size;
-	u8 result = http_download(url, &buf, &size);
+	u32 result = http_download(url, &buf, &size);
 
 	if (result)
 	{
 		if (result == TLS1_1_ERROR)
 			printf("Could not connect - server does not support TLSv1.1, which the 3DS requires. Try again with HTTP.");
 		else
-			printf("Download failed! %i\n", result);
+			printf("Download failed! %li\n", result);
 	}
 	else
 	{
