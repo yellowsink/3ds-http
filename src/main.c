@@ -3,31 +3,34 @@
 #include <string.h>
 #include <3ds.h>
 
-const u32 TLS1_1_ERROR = 0xd8a0a03c;
+#define TLS1_1_ERROR 0xd8a0a03c
 
 const char* KiB = "KiB";
 const char* MiB = "MiB";
 
-char* format_size(u32 bytes)
+char* format_size_f(float bytesf)
 {
-	float bytesf;
 	const char* specifier = "";
 
-	if (bytes > (1024*1024))
+	if (bytesf > (1024*1024))
 	{
-		bytesf = (float)bytes / (1024*1024);
+		bytesf /= (1024*1024);
 		specifier = MiB;
 	}
-	else if (bytes > 1024)
+	else if (bytesf > 1024)
 	{
-		bytesf = (float)bytes / 1024;
+		bytesf /= 1024;
 		specifier = KiB;
 	}
-	else bytesf = (float)bytes;
 
 	char* s = malloc(256);
 	sprintf(s, "%.2f%s", bytesf, specifier);
 	return s;
+}
+
+char* format_size(u32 bytes)
+{
+	return format_size_f(bytes);
 }
 
 // starts a request, and follows all redirects
@@ -66,7 +69,7 @@ Result http_start_req(httpcContext* ctx, const char* url, u32* res_code)
 		}
 
 		ret |= httpcGetResponseStatusCode(ctx, res_code);
-		printf("[http_start_req] res status %li %lx\n", *res_code, ret);
+		//printf("[http_start_req] res status %li %lx\n", *res_code, ret);
 		if (ret)
 		{
 			httpcCloseContext(ctx); // unhandled ret
@@ -156,8 +159,9 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	}
 
 	u32 bufoset = 0; // the offset to start reading into (the size of the previous buffer)
-	char* size_fmt = NULL; // formatted size so far
+	char* size_fmt = NULL, * speed_fmt = NULL; // formatted size & speed so far
 
+	u64 prev_time = osGetTime();
 	// download loop
 	for (;;)
 	{
@@ -166,9 +170,17 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 		ret = httpcDownloadData(&ctx, buf + bufoset, 4096, &read);
 		bufoset += read;
 
+		u64 time = osGetTime();
+		float time_diff = (float)(time - prev_time) / 1000; // to seconds
+		prev_time = time;
+
+		float data_rate = 4096 / time_diff; // bytes / sec
+
 		if (size_fmt) free(size_fmt);
+		if (speed_fmt) free(speed_fmt);
 		size_fmt = format_size(bufoset);
-		iprintf("\x1b[2JDownloaded: %s / %s\n", size_fmt, cl_fmt);
+		speed_fmt = format_size_f(data_rate);
+		iprintf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt, cl_fmt, speed_fmt);
 
 		if (ret != HTTPC_RESULTCODE_DOWNLOADPENDING) break;
 
@@ -217,21 +229,22 @@ int main(int argc, char* argv[])
 	u8* buf;
 	u32 size;
 	u32 result = http_download(url, &buf, &size);
-
-	if (result)
-	{
-		if (result == TLS1_1_ERROR)
-			printf("Could not connect - server does not support TLSv1.1, which the 3DS requires. Try again with HTTP.");
-		else
-			printf("Download failed! %li\n", result);
-	}
-	else
-	{
-		printf("Success!\n");
-		printf("Byte 5 is %i\n", buf[4]);
-	}
-
 	free(buf);
+
+	switch (result)
+	{
+		case 0:
+			printf("Success!\n");
+			break;
+
+		case TLS1_1_ERROR:
+			printf("Error: Server does not support TLSv1.1, which the 3DS requires. Try again with HTTP.\n");
+			break;
+
+		default:
+			printf("Error %lx\n", result);
+			break;
+	}
 
 	// Main loop
 	while (aptMainLoop())
