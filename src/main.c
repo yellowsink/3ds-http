@@ -110,7 +110,7 @@ Result http_start_req(httpcContext* ctx, const char* url, u32* res_code)
 	return ret;
 }
 
-Result http_download(const char* url, u8** buffero, u32* sizeo)
+Result http_download(const char* url, FILE* f, u32* sizeo)
 {
 	Result ret = 0;   // basically errno for the httpc functions
 	httpcContext ctx; // httpc context
@@ -148,9 +148,9 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 
 	printf("total download size: %li (%s)\n", content_len, cl_fmt);
 
-	u8* buf = NULL, *lastbuf = NULL; // buffer we read into, and the previous one in case realloc fails and we gotta free it
+	u8* buf = NULL; // buffer we read into, and the previous one in case realloc fails and we gotta free it
 
-	// init first buffer - one page
+	// init buffer - one page
 	buf = malloc(4096);
 	if (!buf)
 	{
@@ -158,42 +158,35 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 		return -1;
 	}
 
-	u32 bufoset = 0; // the offset to start reading into (the size of the previous buffer)
+	u32 size_so_far = 0; // the offset to start reading into (the size of the previous buffer)
 	char* size_fmt = NULL, * speed_fmt = NULL; // formatted size & speed so far
 
 	u64 prev_time = osGetTime();
 	// download loop
-	for (;;)
+	do
 	{
-		// TODO: buffer into the file system, not into ram - we only have 128MB of RAM for the whole system!
+		// get from http
 		u32 read;
-		ret = httpcDownloadData(&ctx, buf + bufoset, 4096, &read);
-		bufoset += read;
+		ret = httpcDownloadData(&ctx, buf, 4096, &read);
+		size_so_far += read;
+
+		// write to SD
+		fwrite(buf, sizeof buf[0], read, f);
 
 		u64 time = osGetTime();
 		float time_diff = (float)(time - prev_time) / 1000; // to seconds
 		prev_time = time;
-
 		float data_rate = 4096 / time_diff; // bytes / sec
 
 		if (size_fmt) free(size_fmt);
 		if (speed_fmt) free(speed_fmt);
-		size_fmt = format_size(bufoset);
+
+		size_fmt = format_size(size_so_far);
 		speed_fmt = format_size_f(data_rate);
+
 		iprintf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt, cl_fmt, speed_fmt);
 
-		if (ret != HTTPC_RESULTCODE_DOWNLOADPENDING) break;
-
-		// see comment at lastbuf decl
-		lastbuf = buf;
-		buf = realloc(buf, bufoset + 4096);
-		if (!buf)
-		{
-			httpcCloseContext(&ctx);
-			free(lastbuf);
-			return -1;
-		}
-	}
+	} while(ret == HTTPC_RESULTCODE_DOWNLOADPENDING);
 
 	if (ret)
 	{
@@ -202,21 +195,20 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 		return ret;
 	}
 
-	// at this point, our buffer is the size of the file *rounded up to a page*
-	// `bufoset` contains the actual file size
-
-	printf("downloaded size: %li (%s)\n", bufoset, size_fmt);
+	printf("downloaded size: %li (%s)\n", size_so_far, size_fmt);
 	free(size_fmt);
+	free(speed_fmt);
+	free(buf);
 
 	// note as per documentation - closing the context before downloading the entire file will hang
 	httpcCloseContext(&ctx);
-	*buffero = buf;
-	*sizeo = bufoset;
+	*sizeo = size_so_far;
 
 	return 0;
 }
 
-const char* url = "https://cdn.hyrule.pics/21ca0f0d1.png"; // will not work on hardware on purpose
+const char* url = "http://cdn.hyrule.pics/5ed156b41.mp4";
+const char* target = "../3DSHTTP_TARGET";
 
 int main(int argc, char* argv[])
 {
@@ -226,15 +218,17 @@ int main(int argc, char* argv[])
 
 	printf("Hello, world!\nDownloading %s\n", url);
 
-	u8* buf;
+	FILE* f = fopen(target, "wb");
+
 	u32 size;
-	u32 result = http_download(url, &buf, &size);
-	free(buf);
+	u32 result = http_download(url, f, &size);
+
+	fclose(f);
 
 	switch (result)
 	{
 		case 0:
-			printf("Success!\n");
+			printf("Success! Written to %s\n", target);
 			break;
 
 		case TLS1_1_ERROR:
