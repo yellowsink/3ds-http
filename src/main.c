@@ -9,7 +9,7 @@ const char* MiB = "MiB";
 char* format_size(u32 bytes)
 {
 	float bytesf;
-	char* specifier = "";
+	const char* specifier = "";
 
 	if (bytes > (1024*1024))
 	{
@@ -127,6 +127,7 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 
 	// content-length if exists, 0 else
 	u32 content_len = 0;
+	char* cl_fmt;
 
 	ret |= httpcGetDownloadSizeState(&ctx, NULL, &content_len);
 	if (ret)
@@ -135,7 +136,14 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 		return ret;
 	}
 
-	u8* buf, *lastbuf; // buffer we read into, and the previous one in case realloc fails and we gotta free it
+	if (content_len)
+		cl_fmt = format_size(content_len);
+	else
+		cl_fmt = "?";
+
+	printf("total download size: %li (%s)\n", content_len, cl_fmt);
+
+	u8* buf = NULL, *lastbuf = NULL; // buffer we read into, and the previous one in case realloc fails and we gotta free it
 
 	// init first buffer - one page
 	buf = malloc(4096);
@@ -146,6 +154,7 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	}
 
 	u32 bufoset = 0; // the offset to start reading into (the size of the previous buffer)
+	char* size_fmt = NULL; // formatted size so far
 
 	// download loop
 	for (;;)
@@ -154,6 +163,10 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 		u32 read;
 		ret = httpcDownloadData(&ctx, buf + bufoset, 4096, &read);
 		bufoset += read;
+
+		if (size_fmt) free(size_fmt);
+		size_fmt = format_size(bufoset);
+		iprintf("\x1b[2JDownloaded: %s / %s\n", size_fmt, cl_fmt);
 
 		if (ret != HTTPC_RESULTCODE_DOWNLOADPENDING) break;
 
@@ -178,7 +191,8 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	// at this point, our buffer is the size of the file *rounded up to a page*
 	// `bufoset` contains the actual file size
 
-	printf("downloaded size: %li (%s)\n", bufoset, format_size(bufoset));
+	printf("downloaded size: %li (%s)\n", bufoset, size_fmt);
+	free(size_fmt);
 
 	// note as per documentation - closing the context before downloading the entire file will hang
 	httpcCloseContext(&ctx);
@@ -188,7 +202,7 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	return 0;
 }
 
-const char* url = "https://f.yellows.ink/disclaimer.MP4";
+const char* url = "http://cdn.hyrule.pics/21ca0f0d1.png";
 
 int main(int argc, char* argv[])
 {
