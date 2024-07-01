@@ -3,6 +3,31 @@
 #include <string.h>
 #include <3ds.h>
 
+const char* KiB = "KiB";
+const char* MiB = "MiB";
+
+char* format_size(u32 bytes)
+{
+	float bytesf;
+	char* specifier = "";
+
+	if (bytes > (1024*1024))
+	{
+		bytesf = (float)bytes / (1024*1024);
+		specifier = MiB;
+	}
+	else if (bytes > 1024)
+	{
+		bytesf = (float)bytes / 1024;
+		specifier = KiB;
+	}
+	else bytesf = (float)bytes;
+
+	char* s = malloc(256);
+	sprintf(s, "%.2f%s", bytesf, specifier);
+	return s;
+}
+
 // starts a request, and follows all redirects
 Result http_start_req(httpcContext* ctx, const char* url, u32* res_code)
 {
@@ -11,18 +36,24 @@ Result http_start_req(httpcContext* ctx, const char* url, u32* res_code)
 
 	for (;;)
 	{
-		ret = httpcOpenContext(ctx, HTTPC_METHOD_GET, url, 0);
+		ret = httpcOpenContext(ctx, HTTPC_METHOD_GET, url, 1);
+		//printf("[http_start_req] opened %lx\n", ret);
 
 		// disable cert verification, as the 3ds is fuckin old lmao
 		ret |= httpcSetSSLOpt(ctx, SSLCOPT_DisableVerify);
+		//printf("[http_start_req] disabled certs %lx\n", ret);
 
 		// purposefully don't enable keep-alive, we don't need it
+		ret |= httpcSetKeepAlive(ctx, HTTPC_KEEPALIVE_DISABLED);
+		//printf("[http_start_req] disabled keepalive %lx\n", ret);
 
 		// set a UA
 		ret |= httpcAddRequestHeaderField(ctx, "User-Agent", "3ds-http/1.0.0");
+		//printf("[http_start_req] set UA %lx\n", ret);
 
 		// request!
 		ret |= httpcBeginRequest(ctx);
+		//printf("[http_start_req] sent %lx\n", ret);
 		if (ret)
 		{
 			httpcCloseContext(ctx); // unhandled ret
@@ -33,6 +64,7 @@ Result http_start_req(httpcContext* ctx, const char* url, u32* res_code)
 		}
 
 		ret |= httpcGetResponseStatusCode(ctx, res_code);
+		printf("[http_start_req] res status %li %lx\n", *res_code, ret);
 		if (ret)
 		{
 			httpcCloseContext(ctx); // unhandled ret
@@ -57,7 +89,7 @@ Result http_start_req(httpcContext* ctx, const char* url, u32* res_code)
 
 			ret |= httpcGetResponseHeader(ctx, "Location", redir_url_buf, 4096);
 
-			printf("URL Redirect from\n%s\nto\n%s\n", url, redir_url_buf);
+			printf("[http_start_req] redirect from\n%s\nto\n%s\n", url, redir_url_buf);
 
 			url = redir_url_buf;
 
@@ -146,7 +178,7 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	// at this point, our buffer is the size of the file *rounded up to a page*
 	// `bufoset` contains the actual file size
 
-	printf("downloaded size: %li\n", bufoset);
+	printf("downloaded size: %li (%s)\n", bufoset, format_size(bufoset));
 
 	// note as per documentation - closing the context before downloading the entire file will hang
 	httpcCloseContext(&ctx);
@@ -156,14 +188,15 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	return 0;
 }
 
-const char* url = "https://f.yellows.ink/powerline_ethernet.jpg";
+const char* url = "https://f.yellows.ink/disclaimer.MP4";
 
 int main(int argc, char* argv[])
 {
 	gfxInitDefault();
 	consoleInit(GFX_TOP, NULL);
+	httpcInit(0);
 
-	printf("Hello, world!\nDownloading %s...\n", url);
+	printf("Hello, world!\nDownloading %s\n", url);
 
 	u8* buf;
 	u32 size;
@@ -194,6 +227,7 @@ int main(int argc, char* argv[])
 			break; // break in order to return to hbmenu
 	}
 
+	httpcExit();
 	gfxExit();
 	return 0;
 }
