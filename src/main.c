@@ -3,6 +3,8 @@
 #include <string.h>
 #include <3ds.h>
 
+const u32 TLS1_1_ERROR = 0xd8a0a03c;
+
 const char* KiB = "KiB";
 const char* MiB = "MiB";
 
@@ -202,7 +204,7 @@ Result http_download(const char* url, u8** buffero, u32* sizeo)
 	return 0;
 }
 
-const char* url = "http://cdn.hyrule.pics/21ca0f0d1.png";
+const char* url = "https://cdn.hyrule.pics/21ca0f0d1.png"; // will not work on hardware on purpose
 
 int main(int argc, char* argv[])
 {
@@ -218,7 +220,10 @@ int main(int argc, char* argv[])
 
 	if (result)
 	{
-		printf("Download failed! %i\n", result);
+		if (result == TLS1_1_ERROR)
+			printf("Could not connect - server does not support TLSv1.1, which the 3DS requires. Try again with HTTP.");
+		else
+			printf("Download failed! %i\n", result);
 	}
 	else
 	{
