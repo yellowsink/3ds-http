@@ -1,3 +1,4 @@
-3ds-http.*
 build
 romfs
+.idea
+.xmake

@@ -184,7 +184,7 @@ Result http_download(const char* url, FILE* f, u32* sizeo)
 		size_fmt = format_size(size_so_far);
 		speed_fmt = format_size_f(data_rate);
 
-		iprintf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt, cl_fmt, speed_fmt);
+		printf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt, cl_fmt, speed_fmt);
 
 	} while(ret == HTTPC_RESULTCODE_DOWNLOADPENDING);
 
