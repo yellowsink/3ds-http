@@ -4,9 +4,7 @@ add_rules("mode.debug", "mode.release")
 
 target("3ds-http")
 	set_kind("binary")
-	if not is_plat("3ds") then
-		return
-	end
+	set_plat("3ds")
 
 	set_arch("arm")
 	add_rules("3ds")
@@ -17,6 +15,9 @@ target("3ds-http")
 	set_values("3ds.description", "http download client for the 3ds")
 	set_values("3ds.author", "Hazel Atkinson")
 
-	add_files("src/**.c")
+	-- TODO: this does not belong here. it NEEDS to go. xmake won't play without it.
+	add_ldflags("-specs=3dsx.specs", "-g", "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard", {force = true})
+
+	add_files("src/**.d")
 
 	set_strip("debug")

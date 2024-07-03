@@ -1,3 +1,4 @@
+-- devkitarm, but with system LDC to allow D code to target the 3DS
 toolchain("devkitarm")
 	set_kind("standalone")
 
@@ -17,6 +18,9 @@ toolchain("devkitarm")
 	set_toolset("ranlib", DEVKITPRO .. "/devkitARM/bin/" .. "arm-none-eabi-ranlib")
 	set_toolset("as", DEVKITPRO .. "/devkitARM/bin/" .. "arm-none-eabi-gcc")
 
+	set_toolset("dc", "ldc2")
+	set_toolset("dcld", DEVKITPRO .. "/devkitARM/bin/" .. "arm-none-eabi-g++")
+
 	add_defines("__3DS__", "HAVE_LIBCTRU")
 
 	local arch = { "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard" }
@@ -24,6 +28,7 @@ toolchain("devkitarm")
 	add_cflags("-g", "-Wall", "-O2", "-mword-relocations", "-ffunction-sections")
 	add_cxflags(arch)
 	--add_cxxflags({ "-frtti", "-std=gnu++11", "-fexceptions" })
+	add_dcflags("-mtriple=arm-freestanding-eabihf", "-float-abi=hard", "-mcpu=mpcore", "-mattr=armv6k", "-betterC")
 
 	add_asflags("-g", arch)
 	add_ldflags("-specs=3dsx.specs", "-g", arch)
@@ -34,20 +39,3 @@ toolchain("devkitarm")
 	add_includedirs(path.join(DEVKITPRO, "/libctru/include") --[[, path.join(DEVKITPRO, "/portlibs/3ds/include")]])
 
 	add_links("ctru", "m")
-
-	on_load(function(toolchain)
-		--toolchain:add("defines",  "HAVE_LIBCTRU", "STBI_NO_THREAD_LOCALS")
-		--toolchain:add("arch", "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard")
-
-		--toolchain:add("cflags", "-g", "-Wall", "-O2", "-mword-relocations", "-ffunction-sections", {force = true})
-		--toolchain:add("cxflags", "-march=armv6k", "-mtune=mpcore", "-mfloat-abi=hard", "-mtp=soft", {force = true})
-		--toolchain:add("cxxflags", "-frtti", "-std=gnu++11", "-fexceptions", {force = true})
-
-		--toolchain:add("asflags", "-g", "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard", {force = true})
-		--toolchain:add("ldflags", "-specs=3dsx.specs", "-g", "-march=armv6k", "-mtune=mpcore", "-mfloat-abi=hard", "-mtp=soft" --[[,"-Wl,-Map,3ds-http.map"]], {force = true})
-
-		--toolchain:add("linkdirs", path.join(DEVKITPRO, "/libctru/lib")--[[, path.join(DEVKITPRO, "/portlibs/3ds/lib")]])
-		--toolchain:add("syslinks",--[[ "gcc", "c",]] "m"--[[, "3ds"]])
-		--toolchain:add("links", "ctru")
-	end)
-toolchain_end()

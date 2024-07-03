@@ -13,6 +13,7 @@ rule("3ds")
 
 	after_build(function(target)
 		if not target:kind() == "binary" then
+			print("plat 3ds only works with binary targets")
 			return
 		end
 
@@ -37,9 +38,6 @@ rule("3ds")
 		cprint("${color.build.target}Generating smdh metadata")
 
 		local smdhfile = path.absolute(path.join(target:targetdir(), name .. ".smdh"))
-		--[[if not os.isdir(path.directory(nacpfile)) then
-			os.mkdir(path.directory(nacpfile))
-		end]]
 
 		local smdh_args = { "--create", name, description, author, icon, smdhfile }
 
@@ -54,10 +52,6 @@ rule("3ds")
 		cprint("${color.build.target}Generating 3dsx file")
 
 		local _3dsxtool_args = { target_file, file_3dsx, "--smdh=".. smdhfile }
-
-		if icon ~= nil and icon ~= "" then
-			--table.insert(_3dsxtool_args, "--icon=" .. icon)
-		end
 
 		if romfsdir ~= nil and romfsdir ~= "" then
 			table.insert(_3dsxtool_args, "--romfs=" .. romfsdir)
