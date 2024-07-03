@@ -1,3 +1,7 @@
+add_repositories("3dskit git@github.com:ys-3dskit/3dskit-repo")
+
+add_requires("libctru ~2.3.1", "citro3d ~1.7.1", "citro2d ~1.6.0")
+
 includes("toolchain/*.lua")
 
 add_rules("mode.debug", "mode.release")
@@ -19,6 +23,8 @@ target("3ds-http")
 	add_ldflags("-specs=3dsx.specs", "-g", "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard", {force = true})
 
 	add_files("src/**.d")
+
+	add_packages("libctru")
 
 	-- fix imports
 	add_dcflags("-Isrc", {force = true})
