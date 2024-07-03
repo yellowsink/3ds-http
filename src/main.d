@@ -1,38 +1,29 @@
 
+import binds.stdc : printf;
+
+import binds.ctru : gfxInitDefault, consoleInit, gfxScreen_t, gspWaitForVBlank, gfxSwapBuffers, gfxExit;
+
 extern (C)
 {
-	void gfxInitDefault();
-
-	void* consoleInit(int screen, void* console);
-
 	bool aptMainLoop();
-
-	void gspWaitForEvent(int, bool);
-
-	void gfxSwapBuffers();
 
 	void hidScanInput();
 
 	uint hidKeysDown();
-
-	void gfxExit();
-
-	pragma(printf)
-	int printf(scope const char* format, scope const ...);
 }
 
 
 extern(C) void main()
 {
 	gfxInitDefault();
-	consoleInit(0, null); // 0 is top screen
+	consoleInit(gfxScreen_t.GFX_TOP, null); // 0 is top screen
 
 	printf("hi?");
 
 	while (aptMainLoop())
 	{
-		//gspWaitForVBlank();
-		gspWaitForEvent(2, true); // 2: vblank0
+		gspWaitForVBlank();
+		//gspWaitForEvent(2, true); // 2: vblank0
 		gfxSwapBuffers();
 		hidScanInput();
 

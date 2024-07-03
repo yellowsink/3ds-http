@@ -20,4 +20,7 @@ target("3ds-http")
 
 	add_files("src/**.d")
 
+	-- fix imports
+	add_dcflags("-Isrc", {force = true})
+
 	set_strip("debug")
