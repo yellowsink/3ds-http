@@ -39,4 +39,4 @@ toolchain("devkitarm")
 	--add_linkdirs(path.join(DEVKITPRO, "/libctru/lib") --[[, path.join(DEVKITPRO, "/portlibs/3ds/lib")]])
 	--add_includedirs(path.join(DEVKITPRO, "/libctru/include") --[[, path.join(DEVKITPRO, "/portlibs/3ds/include")]])
 
-	add_links("ctru", "m")
+	add_links("m")

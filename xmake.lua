@@ -1,6 +1,6 @@
 add_repositories("3dskit git@github.com:ys-3dskit/3dskit-repo")
 
-add_requires("libctru ~2.3.1", "citro3d ~1.7.1", "citro2d ~1.6.0")
+add_requires("libctru ~2.3.1", "citro3d ~1.7.1", "citro2d ~1.6.0", "3dskit-dlang ~0.0.3")
 
 includes("toolchain/*.lua")
 
@@ -22,11 +22,11 @@ target("3ds-http")
 	-- TODO: this does not belong here. it NEEDS to go. xmake won't play without it.
 	add_ldflags("-specs=3dsx.specs", "-g", "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard", {force = true})
 
-	add_files("src/**.d", "~/source/3dskit-d/ys3ds/ctru/**.d")
+	add_files("src/**.d")
 
-	add_packages("libctru")
+	add_packages("libctru", "3dskit-dlang")
 
 	-- fix imports
-	add_dcflags("-Isrc", "-I~/source/3dskit-d", {force = true})
+	add_dcflags("-Isrc", {force = true})
 
 	set_strip("debug")
