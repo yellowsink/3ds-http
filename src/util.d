@@ -4,6 +4,16 @@ private
 	enum MiB = "MiB";
 }
 
+// TEMPORARY - until ported druntime works
+// src[] = dst[]
+private void __memcpy(T)(const T[] src, T[] dst)
+{
+	assert(src.length == dst.length);
+
+	for (size_t i = 0; i < src.length; i++)
+		dst[i] = src[i];
+}
+
 // nicer malloc
 
 T* malloc_d(T)()
@@ -34,6 +44,15 @@ void free_d(T)(T[] slice)
 	free_d(slice.ptr);
 }
 
+T[] slicedup(T)(const T[] src, bool free = false)
+{
+	auto dst = malloc_slice!T(src.length);
+	//dst[] = src[];
+	__memcpy(src, dst);
+	if (free) free_d(src);
+	return dst;
+}
+
 // phobos std.string.toStringz
 immutable(char)* toStringz(scope const(char)[] s, bool freeInput = false)
 {
@@ -42,7 +61,8 @@ immutable(char)* toStringz(scope const(char)[] s, bool freeInput = false)
 
 	// make copy
 	auto copy = malloc_slice!char(s.length + 1);
-	copy[0 .. s.length] = s[];
+	//copy[0 .. s.length] = s[];
+  __memcpy(s, copy[0 .. s.length]);
 	copy[s.length] = 0; // write null terminator
 
 	if (freeInput) free_d(s);
