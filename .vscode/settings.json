@@ -1,7 +1,6 @@
 {
-  "files.associations": {
-    ".fantomasignore": "ignore",
-    "3ds.h": "c",
-    "stdio.h": "c"
-  }
+	"d.projectImportPaths": [
+		// todo: this is AWFUL
+		"~/.xmake/packages/3/3dskit-dlang/v0.0.3/44da13e600bd4bdd97239cf338c1bd3a/include"
+	],
 }
