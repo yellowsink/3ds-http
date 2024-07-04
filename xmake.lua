@@ -22,11 +22,11 @@ target("3ds-http")
 	-- TODO: this does not belong here. it NEEDS to go. xmake won't play without it.
 	add_ldflags("-specs=3dsx.specs", "-g", "-march=armv6k", "-mtune=mpcore", "-mtp=soft", "-mfloat-abi=hard", {force = true})
 
-	add_files("src/**.d")
+	add_files("src/**.d", "~/source/3dskit-d/ys3ds/ctru/**.d")
 
 	add_packages("libctru")
 
 	-- fix imports
-	add_dcflags("-Isrc", {force = true})
+	add_dcflags("-Isrc", "-I~/source/3dskit-d", {force = true})
 
 	set_strip("debug")

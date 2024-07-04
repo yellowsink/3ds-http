@@ -1,16 +1,11 @@
-
+// TODO: stdc binds in ys3ds
 import binds.stdc : printf;
 
-import binds.ctru : gfxInitDefault, consoleInit, gfxScreen_t, gspWaitForVBlank, gfxSwapBuffers, gfxExit;
-
-extern (C)
-{
-	bool aptMainLoop();
-
-	void hidScanInput();
-
-	uint hidKeysDown();
-}
+import ys3ds.ctru._3ds.gfx : gfxInitDefault, gfxScreen_t, gfxSwapBuffers, gfxExit;
+import ys3ds.ctru._3ds.console : consoleInit;
+import ys3ds.ctru._3ds.services.apt : aptMainLoop;
+import ys3ds.ctru._3ds.services.hid : hidScanInput, hidKeysDown;
+import ys3ds.ctru._3ds.services.gspgpu : gspWaitForVBlank;
 
 
 extern(C) void main()
@@ -23,7 +18,6 @@ extern(C) void main()
 	while (aptMainLoop())
 	{
 		gspWaitForVBlank();
-		//gspWaitForEvent(2, true); // 2: vblank0
 		gfxSwapBuffers();
 		hidScanInput();
 

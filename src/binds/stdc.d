@@ -21,7 +21,8 @@ void* realloc(void* ptr, uint size);
 void free(void* ptr);
 
 // files
-alias FILE = void;
+struct FILE {/* should only ever be used as a pointer */}
+//alias FILE = void;
 
 FILE* fopen(scope const char* filename, scope const char* mode);
 
