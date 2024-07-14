@@ -122,8 +122,8 @@ Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint
 		return tuple(ret, 0u);
 	}
 
-	// 4 pages
-	ubyte[4 * 4096] buf; // buffer to be read into
+	//ubyte[4096] buf; // buffer to be read into
+	auto buf = UniquePtr!(ubyte[]).make(4096);
 	uint size_so_far = 0; // the offset to start reading into (the size of the previous buffer)
 
 	auto prev_time = MonoTime.currTime;
@@ -132,11 +132,11 @@ Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint
 	{
 		// get from http
 		uint read;
-		ret = httpcDownloadData(&ctx, buf.ptr, buf.length, &read);
+		ret = httpcDownloadData(&ctx, (*buf).ptr, (*buf).length, &read);
 		size_so_far += read;
 
 		// write to SD
-		fwrite(cast(char*) buf.ptr, ubyte.sizeof, read, f);
+		fwrite(cast(char*) (*buf).ptr, ubyte.sizeof, read, f);
 
 		auto time = MonoTime.currTime;
 		float time_diff = (cast(float) (time - prev_time).total!"msecs") / 1000; // to seconds

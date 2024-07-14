@@ -22,15 +22,15 @@ import btl.autoptr : UniquePtr;
 
 @nogc nothrow:
 
-enum immutable(char[]) url = "http://cdn.hyrule.pics/5ed156b41.mp4";
+enum immutable(char[]) url = "http://cdn.hyrule.pics/21d0fb730.png"; //"http://cdn.hyrule.pics/5ed156b41.mp4";
 enum immutable(char[]) target = "../3DSHTTP_TARGET";
 
-enum STACK_SIZE = 1 * 1024; // from devkitpro/3ds-examples / threads/thread-basic/source/main.c, why 4kb? idk! 1 page maybe?
+enum STACK_SIZE = 4 * 1024; // from devkitpro/3ds-examples / threads/thread-basic/source/main.c, why 4kb? idk! 1 page maybe?
 
 struct DownloadThreadArgs
 {
-	String url;
-	String savePath;
+	const(char)[] url;
+	const(char)[] savePath;
 }
 
 struct DownloadThreadResult
@@ -62,27 +62,34 @@ extern(C) void downloadThreadMain(void* threadArgPtr)
 	// this deref should copy the data to live locally on this thread
 	auto threadArgs = *(cast(DownloadThreadArgs*) threadArgPtr);
 
-	auto f = fopen(threadArgs.savePath.toStringzManaged.ptr, "wb");
+	// we pass char[]s to keep memory allocation thread-local
+	auto url = String(threadArgs.url);
+	auto savePath = String(threadArgs.savePath);
+
+	auto f = fopen(savePath.toStringzManaged.ptr, "wb");
+
+	httpcInit(0);
 
 	auto result = http_download(
-		threadArgs.url,
+		url,
 		f,
 		(uint sofar, uint fullsz, float datarate) {
 			currentProgress = DownloadProgress(false, sofar, fullsz, datarate);
 		}
 	);
 
+	httpcExit();
+
+	fclose(f);
+
 	dlthrRes = DownloadThreadResult(result[0], result[1]);
 	currentProgress = DownloadProgress(true, 0, 0, 0);
-
-	svcSleepThread(5_000_000_000);
 }
 
 extern(C) void main()
 {
 	gfxInitDefault();
 	consoleInit(gfxScreen_t.GFX_TOP, null);
-	httpcInit(0);
 
 	printf("Downloading %s\n", url.ptr); // D string *literals* are actually null terminated
 
@@ -91,12 +98,13 @@ extern(C) void main()
 	auto res = svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
 	if (res) assert(0);
 
-	auto dltargs = UniquePtr!DownloadThreadArgs.make(String(url), String(target));
+	auto dltargs = UniquePtr!DownloadThreadArgs.make(url, target);
 
 	// set download thread to have a higher priority for ?? reason (something stdio related?)
-	auto dlThreadHandle = threadCreate(&downloadThreadMain, dltargs.ptr, STACK_SIZE, priority - 1, -2, true);
+	auto dlThreadHandle = threadCreate(&downloadThreadMain, dltargs.ptr, STACK_SIZE, priority - 1, -2, false);
 
-	// Downloading loop
+	DownloadProgress last;
+
 	while (aptMainLoop())
 	{
 		hidScanInput();
@@ -105,25 +113,26 @@ extern(C) void main()
 		auto _progress = currentProgress;
 		if (_progress.finishedDownloading) break;
 
-		if (!_progress.currentBytes) continue; // waiting for it to start!
+		if (_progress != last)
+		{
+			printf("\x1b[1;1H");
 
-		//consoleClear();
-		printf("\x1b[1;1H");
-
-		if (!_progress.totalBytes)
-			printf(
-				"%s | %s/s           \n",
-				_progress.currentBytes.format_size.toStringzManaged.ptr,
-				_progress.dataRate.format_size.toStringzManaged.ptr,
-			);
-		else
-			printf(
-				"%.1f%% | %s / %s | %s/s         \n",
-				100. * (cast(float) _progress.currentBytes) / (cast(float) _progress.totalBytes),
-				_progress.currentBytes.format_size.toStringzManaged.ptr,
-				_progress.totalBytes.format_size.toStringzManaged.ptr,
-				_progress.dataRate.format_size.toStringzManaged.ptr,
-			);
+			if (!_progress.totalBytes)
+				printf(
+					"%s | %s/s           \n",
+					_progress.currentBytes.format_size.toStringzManaged.ptr,
+					_progress.dataRate.format_size.toStringzManaged.ptr,
+				);
+			else
+				printf(
+					"%.1f%% | %s / %s | %s/s         \n",
+					100. * (cast(float) _progress.currentBytes) / (cast(float) _progress.totalBytes),
+					_progress.currentBytes.format_size.toStringzManaged.ptr,
+					_progress.totalBytes.format_size.toStringzManaged.ptr,
+					_progress.dataRate.format_size.toStringzManaged.ptr,
+				);
+		}
+		last = _progress;
 
 		// commit the screen
 		gfxFlushBuffers();
@@ -131,21 +140,15 @@ extern(C) void main()
 
 		// vsync
 		gspWaitForVBlank();
-
-		/* uint kDown = hidKeysDown();
-		if (kDown & KEY_START)
-			break; // return to hbmenu */
 	}
 
-	printf("loop exited, getting globals\n");
-	svcSleepThread(1_000_000_000);
-
 	// download is done!
+	// if the second thread is allowed to finish, then app exit crashes
+	threadJoin(dlThreadHandle, ulong.max);
+	threadFree(dlThreadHandle);
+
 	auto result = dlthrRes;
 	currentProgress = DownloadProgress.init;
-
-	printf("got globals\n");
-	svcSleepThread(1_000_000_000);
 
 	switch (result.res)
 	{
@@ -162,6 +165,18 @@ extern(C) void main()
 		break;
 	}
 
-	httpcExit();
+	printf("press start to exit\n");
+
+	while (aptMainLoop())
+	{
+		hidScanInput();
+
+		if (hidKeysDown() & KEY_START) break;
+
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		gspWaitForVBlank();
+	}
+
 	gfxExit();
 }
