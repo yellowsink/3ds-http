@@ -1,25 +1,35 @@
-import binds.stdc : FILE, fwrite, printf;
+import core.stdc.stdio : FILE, fwrite, printf;
+import core.time : MonoTime;
 
-import util : format_size, free_d, slicedup, toStringz;
+import util : format_size;
 
 import ys3ds.ctru._3ds.types : Result;
 import ys3ds.ctru._3ds.services.httpc;
 import ys3ds.ctru._3ds.services.sslc : SSLCOPT_DisableVerify;
-import ys3ds.ctru._3ds.os : osGetTime;
+
+import ys3ds.utility : toStringzManaged, fromStringzManaged;
+
+import btl.string : String;
+import btl.autoptr : UniquePtr;
+import core.lifetime : move;
+
+import std.typecons : Tuple, tuple;
 
 enum TLS_1_1_ERROR = 0xd8a0a03c;
 
-Result http_start_req(httpcContext* ctx, const(char)[] url, uint* res_code)
+// result, status code
+Tuple!(Result, uint) http_start_req(httpcContext* ctx, const ref String url_)
 {
 	Result ret = 0;
-	// allocate on stack
-	char[4096] redir_url_buf;
+	uint res_code;
+
+	auto url = String(url_);
 
 	for (;;)
 	{
-		auto urlz = url.toStringz;
+		auto urlz = url.toStringzManaged; // UniquePtr
 
-		ret = httpcOpenContext(ctx, HTTPC_RequestMethod.HTTPC_METHOD_GET, urlz, 1);
+		ret = httpcOpenContext(ctx, HTTPC_RequestMethod.HTTPC_METHOD_GET, urlz.ptr, 1);
 		//printf("[http_start_req] opened %lx\n", ret);
 
 		// disable cert verification, as the 3ds is fuckin old lmao
@@ -40,43 +50,29 @@ Result http_start_req(httpcContext* ctx, const(char)[] url, uint* res_code)
 		if (ret)
 		{
 			httpcCloseContext(ctx); // unhandled ret
-			/* if (redir_url_buf)
-				free(redir_url_buf); */
 
-			return ret;
+			return tuple(ret, 0u);
 		}
 
-		ret |= httpcGetResponseStatusCode(ctx, res_code);
-		//printf("[http_start_req] res status %li %lx\n", *res_code, ret);
+		ret |= httpcGetResponseStatusCode(ctx, &res_code);
+		//printf("[http_start_req] res status %li %lx\n", res_code, ret);
 		if (ret)
 		{
 			httpcCloseContext(ctx); // unhandled ret
-			/* if (redir_url_buf)
-				free(redir_url_buf); */
 
-			return ret;
+			return tuple(ret, 0u);
 		}
 
 		// handle redirects
-		if ((*res_code >= 301 && *res_code <= 303) || (*res_code >= 307 && *res_code <= 308))
+		if ((res_code >= 301 && res_code <= 303) || (res_code >= 307 && res_code <= 308))
 		{
-			// expect the redirect url to fit in 4k chars
-			/* if (!redir_url_buf)
-				redir_url_buf = malloc(4096); */
-
-			/* if (!redir_url_buf)
-			{
-				httpcCloseContext(ctx);
-				return -1;
-			} */
+			char[4096] redir_url_buf;
 
 			ret |= httpcGetResponseHeader(ctx, "Location", redir_url_buf.ptr, 4096);
 
-			printf("[http_start_req] redirect from\n%s\nto\n%s\n", urlz, redir_url_buf.ptr);
+			printf("[http_start_req] redirect from\n%s\nto\n%s\n", urlz.ptr, redir_url_buf.ptr);
 
-			url = redir_url_buf[];
-
-			free_d(urlz);
+			url = redir_url_buf.ptr.fromStringzManaged;
 
 			// we'll start from scratch with a new ctx
 			httpcCloseContext(ctx);
@@ -87,64 +83,54 @@ Result http_start_req(httpcContext* ctx, const(char)[] url, uint* res_code)
 			break;
 	}
 
-	/* free(redir_url_buf); */
-	return ret;
+	return tuple(ret, res_code);
 }
 
-Result http_download(const(char)[] url, FILE* f, uint* sizeo)
+// result, size of file
+Tuple!(Result, uint) http_download(const String url, FILE* f)
 {
 	Result ret; // basically errno for the httpc functions
 	httpcContext ctx; // httpc context
-	uint res_code; // http resp status code
 
-	ret |= http_start_req(&ctx, url, &res_code);
+	// [result, status code]
+	auto started = http_start_req(&ctx, url);
+	ret |= started[0];
 	if (ret)
 	{
 		httpcCloseContext(&ctx);
-		return ret;
+		return tuple(ret, 0u);
 	}
+
+	auto res_code = started[1];
 
 	if (res_code != 200)
 	{
 		httpcCloseContext(&ctx);
 		printf("response status was %li, not 200 OK\n", res_code);
-		return -2;
+		return tuple(-2, 0u);
 	}
 
 	// content-length if exists, 0 else
 	uint content_len = 0;
-	char[] cl_fmt;
 
 	ret |= httpcGetDownloadSizeState(&ctx, null, &content_len);
 	if (ret)
 	{
 		httpcCloseContext(&ctx);
-		return ret;
+		return tuple(ret, 0u);
 	}
 
-	if (content_len)
-		cl_fmt = format_size(content_len);
-	else
-		cl_fmt = "?".slicedup;
+	String cl_fmt = content_len ? format_size(content_len) : String("?");
 
-	auto clfmtz = cl_fmt.toStringz;
-	printf("total download size: %li (%s)\n", content_len, clfmtz);
+	auto clfmtz = cl_fmt.toStringzManaged;
+	printf("total download size: %li (%s)\n", content_len, clfmtz.ptr);
 
-	// buffer we read into
-	ubyte[4096] buf;
-
-	// init buffer - one page
-	/* buf = malloc(4096);
-	if (!buf)
-	{
-		httpcCloseContext(&ctx);
-		return -1;
-	} */
-
+	ubyte[4096] buf; // buffer to be read into
 	uint size_so_far = 0; // the offset to start reading into (the size of the previous buffer)
-	char[] size_fmt = null, speed_fmt = null; // formatted size & speed so far
+	String size_fmt, speed_fmt; // formatted size & speed so far
+	UniquePtr!(immutable char) size_fmt_z;
 
-	ulong prev_time = osGetTime();
+	auto prev_time = MonoTime.currTime;
 	// download loop
 	do
 	{
@@ -156,21 +142,18 @@ Result http_download(const(char)[] url, FILE* f, uint* sizeo)
 		// write to SD
 		fwrite(cast(char*) buf.ptr, ubyte.sizeof, read, f);
 
-		ulong time = osGetTime();
-		float time_diff = cast(float)(time - prev_time) / 1000; // to seconds
+		auto time = MonoTime.currTime;
+		float time_diff = (cast(float) (time - prev_time).total!"msecs") / 1000; // to seconds
 		prev_time = time;
-		float data_rate = 4096 / time_diff; // bytes / sec
 
-		if (size_fmt)
-			free_d(size_fmt);
-		if (speed_fmt)
-			free_d(speed_fmt);
+		float data_rate = 4096 / time_diff; // bytes / sec
 
 		size_fmt = format_size(size_so_far);
 		speed_fmt = format_size(data_rate);
 
-		// the output of format_size is null terminated
-		printf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt.ptr, clfmtz, speed_fmt.ptr);
+		size_fmt_z = size_fmt.toStringzManaged;
+
+		printf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt_z.ptr, clfmtz.ptr, speed_fmt.toStringzManaged.ptr);
 
 	}
 	while (ret == HTTPC_RESULTCODE_DOWNLOADPENDING);
@@ -178,19 +161,13 @@ Result http_download(const(char)[] url, FILE* f, uint* sizeo)
 	if (ret)
 	{
 		httpcCloseContext(&ctx);
-		free_d(buf);
-		return ret;
+		return tuple(ret, 0u);
 	}
 
-	printf("downloaded size: %li (%s)\n", size_so_far, size_fmt.ptr);
-	free_d(size_fmt);
-	free_d(speed_fmt);
-	//free_d(buf);
-	free_d(clfmtz);
+	printf("downloaded size: %li (%s)\n", size_so_far, size_fmt_z.ptr);
 
 	// note as per documentation - closing the context before downloading the entire file will hang
 	httpcCloseContext(&ctx);
-	*sizeo = size_so_far;
 
-	return 0;
+	return tuple(0, size_so_far);
 }

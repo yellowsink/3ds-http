@@ -1,5 +1,4 @@
-// TODO: stdc binds in ys3ds
-import binds.stdc : printf, fopen, fclose;
+import core.stdc.stdio : printf, fopen, fclose;
 
 import ys3ds.ctru._3ds.gfx : gfxInitDefault, gfxScreen_t, gfxSwapBuffers, gfxExit;
 import ys3ds.ctru._3ds.console : consoleInit;
@@ -8,11 +7,12 @@ import ys3ds.ctru._3ds.services.hid : hidScanInput, hidKeysDown, KEY_START;
 import ys3ds.ctru._3ds.services.gspgpu : gspWaitForVBlank;
 import ys3ds.ctru._3ds.services.httpc : httpcInit, httpcExit;
 
-import util : toStringz;
 import http : http_download, TLS_1_1_ERROR;
 
-immutable char[] url = "http://cdn.hyrule.pics/5ed156b41.mp4";
-immutable char[] target = "../3DSHTTP_TARGET";
+import btl.string : String;
+
+enum immutable(char[]) url = "http://cdn.hyrule.pics/5ed156b41.mp4";
+enum immutable(char[]) target = "../3DSHTTP_TARGET";
 
 extern(C) void main()
 {
@@ -24,10 +24,11 @@ extern(C) void main()
 
 	auto f = fopen(target.ptr, "wb");
 
-	uint size;
-	auto result = http_download(url, f, &size);
+	auto dlres = http_download(String(url), f);
+	auto status = dlres[0];
+	auto size = dlres[1];
 
-	switch (result)
+	switch (status)
 	{
 		case 0:
 			printf("Success! Target written to %s\n", target.ptr);
@@ -38,7 +39,7 @@ extern(C) void main()
 			break;
 
 		default:
-			printf("Error: %lx\n", result);
+			printf("Error: %lx\n", status);
 			break;
 	}
 

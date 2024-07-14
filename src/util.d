@@ -1,98 +1,36 @@
+import btl.string : String;
+
 private
 {
 	enum KiB = "KiB";
 	enum MiB = "MiB";
 }
 
-// TEMPORARY - until ported druntime works
-// src[] = dst[]
-private void __memcpy(T)(const T[] src, T[] dst)
+String format_size(float bytesf)
 {
-	assert(src.length == dst.length);
+	import core.stdc.stdio : snprintf;
 
-	for (size_t i = 0; i < src.length; i++)
-		dst[i] = src[i];
-}
-
-// nicer malloc
-
-T* malloc_d(T)()
-{
-	import binds.stdc : malloc;
-	auto ptr = cast(T*) malloc(T.sizeof);
-	*ptr = T.init;
-	return ptr;
-}
-
-T[] malloc_slice(T)(uint len)
-{
-	import binds.stdc : malloc;
-
-	auto slice = (cast(T*) malloc(T.sizeof * len))[0 .. len];
-	slice[] = T.init;
-	return slice;
-}
-
-void free_d(T)(T* ptr)
-{
-	import binds.stdc : free;
-	free(cast(void*) ptr);
-}
-
-void free_d(T)(T[] slice)
-{
-	free_d(slice.ptr);
-}
-
-T[] slicedup(T)(const T[] src, bool free = false)
-{
-	auto dst = malloc_slice!T(src.length);
-	//dst[] = src[];
-	__memcpy(src, dst);
-	if (free) free_d(src);
-	return dst;
-}
-
-// phobos std.string.toStringz
-immutable(char)* toStringz(scope const(char)[] s, bool freeInput = false)
-{
-	if (s.length == 0) // empty
-		return "".ptr;
-
-	// make copy
-	auto copy = malloc_slice!char(s.length + 1);
-	//copy[0 .. s.length] = s[];
-  __memcpy(s, copy[0 .. s.length]);
-	copy[s.length] = 0; // write null terminator
-
-	if (freeInput) free_d(s);
-
-	return &(cast(immutable) copy[0]);
-}
-
-char[] format_size(float bytesf)
-{
-	import binds.stdc : sprintf;
-
-	immutable(char)* specifier;
+	string specifier;
 
 	if (bytesf > (1024*1024))
 	{
 		bytesf /= (1024*1024);
-		specifier = MiB.ptr;
+		specifier = MiB;
 	}
 	else if (bytesf > 1024)
 	{
 		bytesf /= 1024;
-		specifier = KiB.ptr;
+		specifier = KiB;
 	}
 
-	char[] s = malloc_slice!char(256);
-	sprintf(s.ptr, "%.2f%s", bytesf, specifier);
-	return s;
+	char[128] buf; // 128 bytes should be wayyy overkill
+	// the returned length excludes the null terminator
+	auto fltlen = snprintf(buf.ptr, 128, "%.2f", bytesf);
+
+	return String(buf[0 .. fltlen]) ~ String(specifier);
 }
 
-char[] format_size(uint bytes)
+String format_size(uint bytes)
 {
 	return format_size(cast(float) bytes);
 }

@@ -1,6 +1,6 @@
 {
 	"d.projectImportPaths": [
 		// todo: this is AWFUL
-		"~/.xmake/packages/3/3dskit-dlang/v0.0.3/44da13e600bd4bdd97239cf338c1bd3a/include"
+		"~/.xmake/packages/3/3dskit-dlang/v0.1.0/a9daf1e822af42329560ea51700c8b9b/include"
 	],
 }

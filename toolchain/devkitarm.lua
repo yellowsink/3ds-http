@@ -28,7 +28,7 @@ toolchain("devkitarm")
 	add_cflags("-g", "-Wall", "-O2", "-mword-relocations", "-ffunction-sections")
 	add_cxflags(arch)
 	--add_cxxflags({ "-frtti", "-std=gnu++11", "-fexceptions" })
-	add_dcflags("-mtriple=arm-freestanding-eabihf", "-float-abi=hard", "-mcpu=mpcore", "-mattr=armv6k", "-betterC")
+	add_dcflags("-d-version=Horizon,N3DS", "--conf=", "-mtriple=arm-freestanding-eabihf", "-float-abi=hard", "-mcpu=mpcore", "-mattr=armv6k", "-betterC")
 
 	add_asflags("-g", arch)
 	add_ldflags("-specs=3dsx.specs", "-g", arch)
