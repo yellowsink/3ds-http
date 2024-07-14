@@ -1,5 +1,7 @@
 import btl.string : String;
 
+@nogc nothrow:
+
 private
 {
 	enum KiB = "KiB";

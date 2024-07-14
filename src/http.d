@@ -6,7 +6,6 @@ import util : format_size;
 import ys3ds.ctru._3ds.types : Result;
 import ys3ds.ctru._3ds.services.httpc;
 import ys3ds.ctru._3ds.services.sslc : SSLCOPT_DisableVerify;
-import ys3ds.ctru._3ds.console : consoleClear;
 
 import ys3ds.utility : toStringzManaged, fromStringzManaged;
 
@@ -15,6 +14,8 @@ import btl.autoptr : UniquePtr;
 import core.lifetime : move;
 
 import std.typecons : Tuple, tuple;
+
+@nogc nothrow:
 
 enum TLS_1_1_ERROR = 0xd8a0a03c;
 
@@ -88,7 +89,7 @@ Tuple!(Result, uint) http_start_req(httpcContext* ctx, const ref String url_)
 }
 
 // result, size of file
-Tuple!(Result, uint) http_download(const String url, FILE* f)
+Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint, uint, float) @nogc nothrow progress_func)
 {
 	Result ret; // basically errno for the httpc functions
 	httpcContext ctx; // httpc context
@@ -121,16 +122,9 @@ Tuple!(Result, uint) http_download(const String url, FILE* f)
 		return tuple(ret, 0u);
 	}
 
-	String cl_fmt = content_len ? format_size(content_len) : String("?");
-
-	auto clfmtz = cl_fmt.toStringzManaged;
-	printf("total download size: %li (%s)\n", content_len, clfmtz.ptr);
-
 	// 4 pages
 	ubyte[4 * 4096] buf; // buffer to be read into
 	uint size_so_far = 0; // the offset to start reading into (the size of the previous buffer)
-	String size_fmt, speed_fmt; // formatted size & speed so far
-	UniquePtr!(immutable char) size_fmt_z;
 
 	auto prev_time = MonoTime.currTime;
 	// download loop
@@ -150,20 +144,7 @@ Tuple!(Result, uint) http_download(const String url, FILE* f)
 
 		float data_rate = 4096 / time_diff; // bytes / sec
 
-		size_fmt = format_size(size_so_far);
-		speed_fmt = format_size(data_rate);
-
-		size_fmt_z = size_fmt.toStringzManaged;
-
-		consoleClear();
-
-		printf(
-			"%s / %s (%.1f%%) (%s/s)\n",
-			size_fmt_z.ptr,
-			clfmtz.ptr,
-			100. * cast(float) size_so_far / cast(float) content_len,
-			speed_fmt.toStringzManaged.ptr
-		);
+		progress_func(size_so_far, content_len, data_rate);
 	}
 	while (ret == HTTPC_RESULTCODE_DOWNLOADPENDING);
 
@@ -172,8 +153,6 @@ Tuple!(Result, uint) http_download(const String url, FILE* f)
 		httpcCloseContext(&ctx);
 		return tuple(ret, 0u);
 	}
-
-	printf("downloaded size: %li (%s)\n", size_so_far, size_fmt_z.ptr);
 
 	// note as per documentation - closing the context before downloading the entire file will hang
 	httpcCloseContext(&ctx);

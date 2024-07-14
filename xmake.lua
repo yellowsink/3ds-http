@@ -1,6 +1,6 @@
 add_repositories("3dskit git@github.com:ys-3dskit/3dskit-repo")
 
-add_requires("libctru ~2.3.1", "citro3d ~1.7.1", "citro2d ~1.6.0", "3dskit-dlang ~0.1.0")
+add_requires("libctru ~2.3.1", "citro3d ~1.7.1", "citro2d ~1.6.0", "3dskit-dlang ~0.1.1")
 
 includes("toolchain/*.lua")
 
