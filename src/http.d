@@ -6,6 +6,7 @@ import util : format_size;
 import ys3ds.ctru._3ds.types : Result;
 import ys3ds.ctru._3ds.services.httpc;
 import ys3ds.ctru._3ds.services.sslc : SSLCOPT_DisableVerify;
+import ys3ds.ctru._3ds.console : consoleClear;
 
 import ys3ds.utility : toStringzManaged, fromStringzManaged;
 
@@ -125,7 +126,8 @@ Tuple!(Result, uint) http_download(const String url, FILE* f)
 	auto clfmtz = cl_fmt.toStringzManaged;
 	printf("total download size: %li (%s)\n", content_len, clfmtz.ptr);
 
-	ubyte[4096] buf; // buffer to be read into
+	// 4 pages
+	ubyte[4 * 4096] buf; // buffer to be read into
 	uint size_so_far = 0; // the offset to start reading into (the size of the previous buffer)
 	String size_fmt, speed_fmt; // formatted size & speed so far
 	UniquePtr!(immutable char) size_fmt_z;
@@ -153,8 +155,15 @@ Tuple!(Result, uint) http_download(const String url, FILE* f)
 
 		size_fmt_z = size_fmt.toStringzManaged;
 
-		printf("\x1b[2JDownloaded: %s / %s (%s/s)\n", size_fmt_z.ptr, clfmtz.ptr, speed_fmt.toStringzManaged.ptr);
+		consoleClear();
 
+		printf(
+			"%s / %s (%.1f%%) (%s/s)\n",
+			size_fmt_z.ptr,
+			clfmtz.ptr,
+			100. * cast(float) size_so_far / cast(float) content_len,
+			speed_fmt.toStringzManaged.ptr
+		);
 	}
 	while (ret == HTTPC_RESULTCODE_DOWNLOADPENDING);
 
