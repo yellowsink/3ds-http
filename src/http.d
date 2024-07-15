@@ -92,14 +92,14 @@ Tuple!(Result, uint) http_start_req(httpcContext* ctx, const ref String url_)
 Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint, uint, float) @nogc nothrow progress_func)
 {
 	Result ret; // basically errno for the httpc functions
-	httpcContext ctx; // httpc context
+	auto ctx = UniquePtr!httpcContext.make(); // httpc context
 
 	// [result, status code]
-	auto started = http_start_req(&ctx, url);
+	auto started = http_start_req(ctx.ptr, url);
 	ret |= started[0];
 	if (ret)
 	{
-		httpcCloseContext(&ctx);
+		httpcCloseContext(ctx.ptr);
 		return tuple(ret, 0u);
 	}
 
@@ -107,7 +107,7 @@ Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint
 
 	if (res_code != 200)
 	{
-		httpcCloseContext(&ctx);
+		httpcCloseContext(ctx.ptr);
 		printf("response status was %li, not 200 OK\n", res_code);
 		return tuple(-2, 0u);
 	}
@@ -115,10 +115,10 @@ Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint
 	// content-length if exists, 0 else
 	uint content_len = 0;
 
-	ret |= httpcGetDownloadSizeState(&ctx, null, &content_len);
+	ret |= httpcGetDownloadSizeState(ctx.ptr, null, &content_len);
 	if (ret)
 	{
-		httpcCloseContext(&ctx);
+		httpcCloseContext(ctx.ptr);
 		return tuple(ret, 0u);
 	}
 
@@ -132,7 +132,7 @@ Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint
 	{
 		// get from http
 		uint read;
-		ret = httpcDownloadData(&ctx, (*buf).ptr, (*buf).length, &read);
+		ret = httpcDownloadData(ctx.ptr, (*buf).ptr, (*buf).length, &read);
 		size_so_far += read;
 
 		// write to SD
@@ -150,12 +150,12 @@ Tuple!(Result, uint) http_download(const String url, FILE* f, void function(uint
 
 	if (ret)
 	{
-		httpcCloseContext(&ctx);
+		httpcCloseContext(ctx.ptr);
 		return tuple(ret, 0u);
 	}
 
 	// note as per documentation - closing the context before downloading the entire file will hang
-	httpcCloseContext(&ctx);
+	httpcCloseContext(ctx.ptr);
 
 	return tuple(0, size_so_far);
 }

@@ -143,7 +143,6 @@ extern(C) void main()
 	}
 
 	// download is done!
-	// if the second thread is allowed to finish, then app exit crashes
 	threadJoin(dlThreadHandle, ulong.max);
 	threadFree(dlThreadHandle);
 
